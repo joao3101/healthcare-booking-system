@@ -32,24 +32,6 @@ class DoctorRepositoryTest {
     }
 
     @Test
-    void testFindBySpecialty() {
-        Doctor cardiologist = new Doctor();
-        cardiologist.setName("Dr. Heart");
-        cardiologist.setSpecialty("Cardiology");
-
-        Doctor neurologist = new Doctor();
-        neurologist.setName("Dr. Brain");
-        neurologist.setSpecialty("Neurology");
-
-        doctorRepository.saveAll(List.of(cardiologist, neurologist));
-
-        List<Doctor> cardiologists = doctorRepository.findBySpecialty("Cardiology");
-
-        assertThat(cardiologists).hasSize(1);
-        assertThat(cardiologists.get(0).getName()).isEqualTo("Dr. Heart");
-    }
-
-    @Test
     void testFindAll() {
         Doctor d1 = new Doctor();
         d1.setName("Dr. One");

@@ -1,19 +1,37 @@
 package com.uphill.healthcare_booking_system.repository;
 
 import com.uphill.healthcare_booking_system.repository.entity.Appointment;
-import com.uphill.healthcare_booking_system.repository.entity.Doctor;
-import com.uphill.healthcare_booking_system.repository.entity.Room;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.lang.NonNull;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
-    List<Appointment> findByDoctorAndStartTimeLessThanAndEndTimeGreaterThan(
-        Doctor doctor, LocalDateTime end, LocalDateTime start);
+    
+    @Query("""
+           SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END
+           FROM Appointment a
+           WHERE a.doctor.id = :doctorId
+             AND a.startTime < :end
+             AND a.endTime   > :start
+           """)
+    boolean existsOverlapForDoctor(@Param("doctorId") Long doctorId,
+                                   @Param("start") LocalDateTime start,
+                                   @Param("end") LocalDateTime end);
 
-    List<Appointment> findByRoomAndStartTimeLessThanAndEndTimeGreaterThan(
-        Room room, LocalDateTime end, LocalDateTime start);
+    @Query("""
+           SELECT CASE WHEN COUNT(a) > 0 THEN TRUE ELSE FALSE END
+           FROM Appointment a
+           WHERE a.room.id = :roomId
+             AND a.startTime < :end
+             AND a.endTime   > :start
+           """)
+    boolean existsOverlapForRoom(@Param("roomId") Long roomId,
+                                 @Param("start") LocalDateTime start,
+                                 @Param("end") LocalDateTime end);
 
     @NonNull
     List<Appointment> findAll();

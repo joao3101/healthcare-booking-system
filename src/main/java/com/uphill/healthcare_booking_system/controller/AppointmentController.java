@@ -12,7 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.uphill.healthcare_booking_system.controller.input.AppointmentInput;
 import com.uphill.healthcare_booking_system.controller.output.AppointmentOutput;
-import com.uphill.healthcare_booking_system.repository.entity.Appointment;
+import com.uphill.healthcare_booking_system.domain.AppointmentDomain;
+import com.uphill.healthcare_booking_system.domain.PatientDomain;
 import com.uphill.healthcare_booking_system.service.AppointmentService;
 
 @RestController
@@ -33,17 +34,24 @@ public class AppointmentController {
         LocalDateTime start = LocalDateTime.ofInstant(Instant.ofEpochMilli(instantStart), ZoneId.systemDefault());
         LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochMilli(instantEnd), ZoneId.systemDefault());
         
-        Appointment appointment = new Appointment();        
-        appointment.setStartTime(start);
-        appointment.setEndTime(end);
-        appointment = appointmentService.bookAppointment(appointment);
+        AppointmentDomain appointmentDomain = new AppointmentDomain();        
+        appointmentDomain.setStartTime(start);
+        appointmentDomain.setEndTime(end);
+        appointmentDomain.setSpecialty(appointmentInput.getSpecialty());
+
+        PatientDomain patientDomain = new PatientDomain();
+        patientDomain.setName(appointmentInput.getPatientName());
+        patientDomain.setEmail(appointmentInput.getPatientEmail());
+        appointmentDomain.setPatient(patientDomain);
+        
+        AppointmentDomain savedDomain = appointmentService.bookAppointment(appointmentDomain);
 
         AppointmentOutput appointmentOutput = new AppointmentOutput();
-        appointmentOutput.setAppointmentId(appointment.getId());
-        appointmentOutput.setStartTime(appointment.getStartTime());
-        appointmentOutput.setEndTime(appointment.getEndTime());
-        appointmentOutput.setDoctorId(appointment.getDoctor().getId());
-        appointmentOutput.setRoomId(appointment.getRoom().getId());
+        appointmentOutput.setAppointmentId(savedDomain.getId());
+        appointmentOutput.setStartTime(savedDomain.getStartTime());
+        appointmentOutput.setEndTime(savedDomain.getEndTime());
+        appointmentOutput.setDoctorId(savedDomain.getDoctor().getId());
+        appointmentOutput.setRoomId(savedDomain.getRoom().getId());
         return appointmentOutput;
     }
 }

@@ -94,44 +94,4 @@ class AppointmentRepositoryTest {
                         LocalDateTime.of(2025, 8, 23, 11, 30)
                 );
     }
-
-    @Test
-    void testFindByDoctorOverlappingTimes() {
-        // Query window 10:30–10:45 overlaps only a1 (10:00–11:00)
-        var results = appointmentRepository
-                .findByDoctorAndStartTimeLessThanAndEndTimeGreaterThan(
-                        doctor,
-                        LocalDateTime.of(2025, 8, 23, 10, 45), // end
-                        LocalDateTime.of(2025, 8, 23, 10, 30)  // start
-                );
-
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getStartTime()).isEqualTo(LocalDateTime.of(2025, 8, 23, 10, 0));
-    }
-
-    @Test
-    void testFindByRoomOverlappingTimes() {
-        // Query window 11:45–12:00 overlaps only a2 (11:30–12:30)
-        var results = appointmentRepository
-                .findByRoomAndStartTimeLessThanAndEndTimeGreaterThan(
-                        room,
-                        LocalDateTime.of(2025, 8, 23, 12, 0),  // end
-                        LocalDateTime.of(2025, 8, 23, 11, 45)  // start
-                );
-
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getStartTime()).isEqualTo(LocalDateTime.of(2025, 8, 23, 11, 30));
-    }
-
-    @Test
-    void testOverlapBoundaryNoHit() {
-        // Query window exactly ends at 10:00 — with < and > semantics, this should NOT overlap a1.
-        var results = appointmentRepository
-                .findByDoctorAndStartTimeLessThanAndEndTimeGreaterThan(
-                        doctor,
-                        LocalDateTime.of(2025, 8, 23, 10, 0), // end
-                        LocalDateTime.of(2025, 8, 23, 9, 0)   // start
-                );
-        assertThat(results).isEmpty();
-    }
 }
