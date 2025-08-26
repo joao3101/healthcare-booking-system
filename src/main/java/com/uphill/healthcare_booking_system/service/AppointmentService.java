@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.uphill.healthcare_booking_system.repository.AppointmentRepository;
+import com.uphill.healthcare_booking_system.repository.DoctorRepository;
 import com.uphill.healthcare_booking_system.repository.entity.Appointment;
 import com.uphill.healthcare_booking_system.repository.entity.Doctor;
 import com.uphill.healthcare_booking_system.repository.entity.Room;
@@ -15,6 +16,25 @@ import jakarta.transaction.Transactional;
 public class AppointmentService {
     @Autowired
     private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private DoctorRepository doctorRepository;
+
+    @Transactional
+    public Appointment bookAppointment(Appointment appointment) {
+
+        List<Doctor> doctors = doctorRepository.findBySpecialty(appointment.getDoctor().getSpecialty());
+        if (doctors.isEmpty()) {
+            throw new IllegalArgumentException("No doctors available for this specialty");
+        }
+        if (!isDoctorAvailable(appointment.getDoctor(), appointment.getStartTime(), appointment.getEndTime())) {
+            throw new IllegalArgumentException("Doctor is not available at this time");
+        }
+        if (!isRoomAvailable(appointment.getRoom(), appointment.getStartTime(), appointment.getEndTime())) {
+            throw new IllegalArgumentException("Room is not available at this time");
+        }
+        return appointmentRepository.save(appointment);
+    }
 
     private boolean isDoctorAvailable(Doctor doctor, LocalDateTime start, LocalDateTime end) {
         List<Appointment> overlapping = appointmentRepository
@@ -26,16 +46,5 @@ public class AppointmentService {
         List<Appointment> overlapping = appointmentRepository
                 .findByRoomAndStartTimeLessThanAndEndTimeGreaterThan(room, end, start);
         return overlapping.isEmpty();
-    }
-
-    @Transactional
-    public Appointment bookAppointment(Appointment appointment) {
-        if (!isDoctorAvailable(appointment.getDoctor(), appointment.getStartTime(), appointment.getEndTime())) {
-            throw new IllegalArgumentException("Doctor is not available at this time");
-        }
-        if (!isRoomAvailable(appointment.getRoom(), appointment.getStartTime(), appointment.getEndTime())) {
-            throw new IllegalArgumentException("Room is not available at this time");
-        }
-        return appointmentRepository.save(appointment);
     }
 }
