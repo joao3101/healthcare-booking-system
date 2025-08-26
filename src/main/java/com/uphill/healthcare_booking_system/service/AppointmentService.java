@@ -1,7 +1,8 @@
 package com.uphill.healthcare_booking_system.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
 
 import com.uphill.healthcare_booking_system.domain.AppointmentDomain;
 import com.uphill.healthcare_booking_system.domain.DoctorDomain;
@@ -20,21 +21,26 @@ import com.uphill.healthcare_booking_system.repository.entity.Room;
 
 import jakarta.transaction.Transactional;
 
+@Service
 public class AppointmentService {
-    @Autowired
-    private AppointmentRepository appointmentRepository;
 
-    @Autowired
-    private DoctorRepository doctorRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final DoctorRepository doctorRepository;
+    private final RoomRepository roomRepository;
+    private final PatientRepository patientRepository;
 
-    @Autowired
-    private RoomRepository roomRepository;
-
-    @Autowired
-    private PatientRepository patientRepository;
+    public AppointmentService(AppointmentRepository appointmentRepository,
+            DoctorRepository doctorRepository,
+            RoomRepository roomRepository,
+            PatientRepository patientRepository) {
+        this.appointmentRepository = appointmentRepository;
+        this.doctorRepository = doctorRepository;
+        this.roomRepository = roomRepository;
+        this.patientRepository = patientRepository;
+    }
 
     @Transactional
-    public AppointmentDomain bookAppointment(AppointmentDomain req) {      
+    public AppointmentDomain bookAppointment(AppointmentDomain req) {
         if (req.getStartTime() == null || req.getEndTime() == null || !req.getEndTime().isAfter(req.getStartTime())) {
             throw new InvalidAppointmentWindowException();
         }
@@ -44,10 +50,14 @@ public class AppointmentService {
 
         Patient patient = patientRepository.findByEmail(req.getPatient().getEmail());
         if (patient == null) {
-            patient = new Patient();
-            patient.setName(req.getPatient().getName());
-            patient.setEmail(req.getPatient().getEmail());
-            patientRepository.save(patient);
+            try {
+                patient = new Patient();
+                patient.setName(req.getPatient().getName());
+                patient.setEmail(req.getPatient().getEmail());
+                patientRepository.save(patient);
+            } catch (DataIntegrityViolationException e) {
+                patient = patientRepository.findByEmail(req.getPatient().getEmail());
+            }
         }
 
         Doctor candidateDoctor = doctorRepository
