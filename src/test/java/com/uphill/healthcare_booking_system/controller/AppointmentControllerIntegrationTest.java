@@ -20,6 +20,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -192,32 +196,40 @@ class AppointmentControllerIntegrationTest {
                 appt2.setRoom(room);
                 appt2.setPatient(patient);
 
-                when(appointmentService.getAllAppointments(0, 20))
-                                .thenReturn(List.of(appt1, appt2));
+                Pageable pageable = PageRequest.of(0, 20, Sort.by("startTime").ascending());
+                PageImpl<AppointmentDomain> page = new PageImpl<>(List.of(appt1, appt2), pageable, 2);
+
+                when(appointmentService.getAllAppointments(any(Pageable.class))).thenReturn(page);
 
                 mockMvc.perform(get("/v1/appointments")
                                 .param("page", "0")
                                 .param("size", "20"))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.length()").value(2))
-                                .andExpect(jsonPath("$[0].appointmentId").value(100L))
-                                .andExpect(jsonPath("$[1].appointmentId").value(101L));
+                                .andExpect(jsonPath("$.content.length()").value(2))
+                                .andExpect(jsonPath("$.content[0].appointmentId").value(100L))
+                                .andExpect(jsonPath("$.content[1].appointmentId").value(101L));
         }
 
         @Test
+        @DisplayName("GET /v1/appointments returns empty page")
         void getAllAppointments_paginated_empty() throws Exception {
-                when(appointmentService.getAllAppointments(0, 20)).thenReturn(List.of());
+                Pageable pageable = PageRequest.of(0, 20, Sort.by("startTime").ascending());
+                PageImpl<AppointmentDomain> empty = new PageImpl<>(List.of(), pageable, 0);
+
+                when(appointmentService.getAllAppointments(any(Pageable.class))).thenReturn(empty);
 
                 mockMvc.perform(get("/v1/appointments")
                                 .param("page", "0")
                                 .param("size", "20"))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.length()").value(0));
+                                .andExpect(jsonPath("$.content.length()").value(0));
         }
 
         @Test
         void getAllAppointments_serviceError() throws Exception {
-                when(appointmentService.getAllAppointments(0, 20))
+                Pageable pageable = PageRequest.of(0, 20);
+
+                when(appointmentService.getAllAppointments(pageable))
                                 .thenThrow(new RuntimeException("Unexpected error"));
 
                 mockMvc.perform(get("/v1/appointments")

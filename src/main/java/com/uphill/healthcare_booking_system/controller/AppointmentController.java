@@ -3,15 +3,16 @@ package com.uphill.healthcare_booking_system.controller;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.uphill.healthcare_booking_system.controller.input.AppointmentInput;
@@ -19,6 +20,8 @@ import com.uphill.healthcare_booking_system.controller.output.AppointmentOutput;
 import com.uphill.healthcare_booking_system.domain.AppointmentDomain;
 import com.uphill.healthcare_booking_system.domain.PatientDomain;
 import com.uphill.healthcare_booking_system.service.AppointmentService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/v1/appointments")
@@ -28,7 +31,7 @@ public class AppointmentController {
     private AppointmentService appointmentService;
 
     @PostMapping
-    public AppointmentOutput bookAppointment(@RequestBody AppointmentInput appointmentInput) {
+    public AppointmentOutput bookAppointment(@Valid @RequestBody AppointmentInput appointmentInput) {
         AppointmentDomain appointmentDomain = convertToDomain(appointmentInput);
 
         AppointmentDomain savedDomain = appointmentService.bookAppointment(appointmentDomain);
@@ -37,12 +40,11 @@ public class AppointmentController {
     }
 
     @GetMapping
-    public List<AppointmentOutput> getAllAppointments(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return appointmentService.getAllAppointments(page, size).stream()
-                .map(this::convertToOutput)
-                .collect(Collectors.toList());
+    public ResponseEntity<Page<AppointmentOutput>> getAllAppointments(
+            @PageableDefault(size = 10, sort = "startTime") Pageable pageable) {
+
+        Page<AppointmentDomain> page = appointmentService.getAllAppointments(pageable);
+        return ResponseEntity.ok(page.map(this::convertToOutput));
     }
 
     private AppointmentDomain convertToDomain(AppointmentInput appointmentInput) {

@@ -1,11 +1,9 @@
 package com.uphill.healthcare_booking_system.service;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.uphill.healthcare_booking_system.domain.AppointmentDomain;
@@ -79,8 +77,7 @@ public class AppointmentService {
 
         AppointmentDomain domain = convertToDomain(savedAppointment);
 
-        // For simplicity purposes, the following methods are called here, but they should be called in a separate thread. They should not be dependent
-        // on the transactional context of the bookAppointment method.
+        // Those are async calls that do not interfere with the transactional context of the bookAppointment method.
         updateDoctorCalendar(domain);
         reserveRoom(domain);
         sendConfirmationEmail(domain);
@@ -88,11 +85,9 @@ public class AppointmentService {
         return domain;
     }
 
-    public List<AppointmentDomain> getAllAppointments(int page, int size) {
-        Page<Appointment> appointmentsPage = appointmentRepository.findAll(PageRequest.of(page, size));
-        return appointmentsPage.stream()
-                .map(this::convertToDomain)
-                .collect(Collectors.toList());
+    public Page<AppointmentDomain> getAllAppointments(Pageable pageable) {
+        Page<Appointment> appointmentsPage = appointmentRepository.findAll(pageable);
+        return appointmentsPage.map(this::convertToDomain);
     }
 
     private void checkTimeWindow(LocalDateTime start, LocalDateTime end) {

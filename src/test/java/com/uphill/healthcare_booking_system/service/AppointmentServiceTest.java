@@ -205,12 +205,12 @@ class AppointmentServiceTest {
                 when(appointmentRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
 
                 // when
-                List<AppointmentDomain> result = appointmentService.getAllAppointments(0, 20);
+                Page<AppointmentDomain> result = appointmentService.getAllAppointments(PageRequest.of(0, 20));
 
                 // then
                 assertThat(result).hasSize(2);
-                assertThat(result.get(0).getId()).isEqualTo(100L);
-                assertThat(result.get(1).getId()).isEqualTo(101L);
+                assertThat(result.getContent().get(0).getId()).isEqualTo(100L);
+                assertThat(result.getContent().get(1).getId()).isEqualTo(101L);
         }
 
         @Test
@@ -221,7 +221,7 @@ class AppointmentServiceTest {
                 when(appointmentRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
 
                 // when
-                List<AppointmentDomain> result = appointmentService.getAllAppointments(0, 20);
+                Page<AppointmentDomain> result = appointmentService.getAllAppointments(PageRequest.of(0, 20));
 
                 // then
                 assertThat(result).isEmpty();
