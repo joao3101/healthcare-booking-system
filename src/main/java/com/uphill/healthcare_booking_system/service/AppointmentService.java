@@ -1,23 +1,27 @@
 package com.uphill.healthcare_booking_system.service;
 
-import org.springframework.dao.DataIntegrityViolationException;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.uphill.healthcare_booking_system.domain.AppointmentDomain;
 import com.uphill.healthcare_booking_system.domain.DoctorDomain;
+import com.uphill.healthcare_booking_system.domain.PatientDomain;
 import com.uphill.healthcare_booking_system.domain.RoomDomain;
 import com.uphill.healthcare_booking_system.domain.exceptions.InvalidAppointmentWindowException;
-import com.uphill.healthcare_booking_system.domain.exceptions.NoAvailableDoctorException;
-import com.uphill.healthcare_booking_system.domain.exceptions.NoAvailableRoomException;
+import com.uphill.healthcare_booking_system.enums.AppointmentStatus;
 import com.uphill.healthcare_booking_system.repository.AppointmentRepository;
-import com.uphill.healthcare_booking_system.repository.DoctorRepository;
-import com.uphill.healthcare_booking_system.repository.PatientRepository;
-import com.uphill.healthcare_booking_system.repository.RoomRepository;
 import com.uphill.healthcare_booking_system.repository.entity.Appointment;
 import com.uphill.healthcare_booking_system.repository.entity.Doctor;
 import com.uphill.healthcare_booking_system.repository.entity.Patient;
 import com.uphill.healthcare_booking_system.repository.entity.Room;
+
+import com.uphill.healthcare_booking_system.integration.DoctorCalendarClient;
+import com.uphill.healthcare_booking_system.integration.EmailClient;
+import com.uphill.healthcare_booking_system.integration.RoomReservationClient;
 
 import jakarta.transaction.Transactional;
 
@@ -25,18 +29,27 @@ import jakarta.transaction.Transactional;
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
-    private final DoctorRepository doctorRepository;
-    private final RoomRepository roomRepository;
-    private final PatientRepository patientRepository;
+    private final PatientService patientService;
+    private final DoctorCalendarClient doctorCalendarClient;
+    private final RoomReservationClient roomReservationClient;
+    private final EmailClient emailClient;
+    private final DoctorService doctorService;
+    private final RoomService roomService;
 
     public AppointmentService(AppointmentRepository appointmentRepository,
-            DoctorRepository doctorRepository,
-            RoomRepository roomRepository,
-            PatientRepository patientRepository) {
+            PatientService patientService,
+            DoctorCalendarClient doctorCalendarClient,
+            RoomReservationClient roomReservationClient,
+            EmailClient emailClient,
+            DoctorService doctorService,
+            RoomService roomService) {
         this.appointmentRepository = appointmentRepository;
-        this.doctorRepository = doctorRepository;
-        this.roomRepository = roomRepository;
-        this.patientRepository = patientRepository;
+        this.patientService = patientService;
+        this.doctorCalendarClient = doctorCalendarClient;
+        this.roomReservationClient = roomReservationClient;
+        this.emailClient = emailClient;
+        this.doctorService = doctorService;
+        this.roomService = roomService;
     }
 
     @Transactional
@@ -46,94 +59,87 @@ public class AppointmentService {
         }
         final var start = req.getStartTime();
         final var end = req.getEndTime();
-        final var specialty = req.getSpecialty();
 
-        Patient patient = patientRepository.findByEmail(req.getPatient().getEmail());
-        if (patient == null) {
-            try {
-                patient = new Patient();
-                patient.setName(req.getPatient().getName());
-                patient.setEmail(req.getPatient().getEmail());
-                patientRepository.save(patient);
-            } catch (DataIntegrityViolationException e) {
-                patient = patientRepository.findByEmail(req.getPatient().getEmail());
-            }
-        }
+        Patient patient = patientService.findOrCreatePatient(req.getPatient().getEmail(), req.getPatient().getName());
 
-        Doctor candidateDoctor = doctorRepository
-                .findFirstAvailableBySpecialtyAndWindow(specialty, start, end, PageRequest.of(0, 1))
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new NoAvailableDoctorException(specialty, start, end));
+        Doctor doctor = doctorService.findAndLockAvailableDoctor(req.getSpecialty(), req.getStartTime(), req.getEndTime());
+        Room room = roomService.findAndLockAvailableRoom(req.getStartTime(), req.getEndTime());
 
-        Doctor lockedDoctor = doctorRepository.lockById(candidateDoctor.getId());
-        // This revalidation was added after checking for possible implementations
-        // issues with ChatGTP;
-        boolean doctorStillFree = appointmentRepository
-                .existsOverlapForDoctor(lockedDoctor.getId(), start, end);
-        if (doctorStillFree) {
-            candidateDoctor = doctorRepository
-                    .findFirstAvailableBySpecialtyAndWindow(specialty, start, end, PageRequest.of(0, 1))
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new NoAvailableDoctorException(specialty, start, end));
-            lockedDoctor = doctorRepository.lockById(candidateDoctor.getId());
-            doctorStillFree = appointmentRepository.existsOverlapForDoctor(lockedDoctor.getId(), start, end);
-            if (doctorStillFree) {
-                throw new NoAvailableDoctorException(specialty, start, end);
-            }
-        }
-
-        Room candidateRoom = roomRepository
-                .findFirstAvailableByWindow(start, end, PageRequest.of(0, 1))
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new NoAvailableRoomException(start, end));
-
-        Room lockedRoom = roomRepository.lockById(candidateRoom.getId());
-        // This revalidation was added after checking for possible implementations
-        // issues with ChatGTP;
-        boolean roomStillFree = appointmentRepository
-                .existsOverlapForRoom(lockedRoom.getId(), start, end);
-        if (roomStillFree) {
-            candidateRoom = roomRepository
-                    .findFirstAvailableByWindow(start, end, PageRequest.of(0, 1))
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new NoAvailableRoomException(start, end));
-            lockedRoom = roomRepository.lockById(candidateRoom.getId());
-            roomStillFree = appointmentRepository.existsOverlapForRoom(lockedRoom.getId(), start, end);
-            if (roomStillFree) {
-                throw new NoAvailableRoomException(start, end);
-            }
-        }
-
+        // This can be refactored to a mapper method
         Appointment appt = new Appointment();
-        appt.setDoctor(lockedDoctor);
-        appt.setRoom(lockedRoom);
+        appt.setDoctor(doctor);
+        appt.setRoom(room);
         appt.setPatient(patient);
+        appt.setStatus(AppointmentStatus.SCHEDULED);
         appt.setStartTime(start);
         appt.setEndTime(end);
 
         Appointment savedAppointment = appointmentRepository.save(appt);
 
+        AppointmentDomain domain = convertToDomain(savedAppointment);
+
+        reserveDoctor(domain);
+        reserveRoom(domain);
+        sendConfirmationEmail(domain);
+
+        return domain;
+    }
+
+    public List<AppointmentDomain> getAllAppointments(int page, int size) {
+        Page<Appointment> appointmentsPage = appointmentRepository.findAll(PageRequest.of(page, size));
+        return appointmentsPage.stream()
+                .map(this::convertToDomain)
+                .collect(Collectors.toList());
+    }
+
+    private AppointmentDomain convertToDomain(Appointment appointment) {
         DoctorDomain doctorDomain = new DoctorDomain();
-        doctorDomain.setId(savedAppointment.getDoctor().getId());
-        doctorDomain.setName(savedAppointment.getDoctor().getName());
-        doctorDomain.setSpecialty(savedAppointment.getDoctor().getSpecialty());
+        doctorDomain.setId(appointment.getDoctor().getId());
+        doctorDomain.setName(appointment.getDoctor().getName());
+        doctorDomain.setSpecialty(appointment.getDoctor().getSpecialty());
 
         RoomDomain roomDomain = new RoomDomain();
-        roomDomain.setId(savedAppointment.getRoom().getId());
-        roomDomain.setName(savedAppointment.getRoom().getName());
-        roomDomain.setLocation(savedAppointment.getRoom().getLocation());
+        roomDomain.setId(appointment.getRoom().getId());
+        roomDomain.setName(appointment.getRoom().getName());
+        roomDomain.setLocation(appointment.getRoom().getLocation());
 
-        AppointmentDomain savedDomain = new AppointmentDomain();
-        savedDomain.setId(savedAppointment.getId());
-        savedDomain.setDoctor(doctorDomain);
-        savedDomain.setRoom(roomDomain);
-        savedDomain.setStartTime(start);
-        savedDomain.setEndTime(end);
+        PatientDomain patientDomain = new PatientDomain();
+        patientDomain.setId(appointment.getPatient().getId());
+        patientDomain.setName(appointment.getPatient().getName());
+        patientDomain.setEmail(appointment.getPatient().getEmail());
 
-        return savedDomain;
+        AppointmentDomain domain = new AppointmentDomain();
+        domain.setId(appointment.getId());
+        domain.setDoctor(doctorDomain);
+        domain.setRoom(roomDomain);
+        domain.setPatient(patientDomain);
+        domain.setStatus(appointment.getStatus());
+        domain.setStartTime(appointment.getStartTime());
+        domain.setEndTime(appointment.getEndTime());
+        return domain;
+    }
+
+    private void reserveDoctor(AppointmentDomain appointment) {
+        doctorCalendarClient.reserveSlot(
+                appointment.getDoctor().getId(),
+                appointment.getStartTime(),
+                appointment.getEndTime());
+    }
+
+    private void reserveRoom(AppointmentDomain appointment) {
+        roomReservationClient.reserveRoom(
+                appointment.getRoom().getId(),
+                appointment.getStartTime(),
+                appointment.getEndTime());
+    }
+
+    private void sendConfirmationEmail(AppointmentDomain appointment) {
+        String subject = "Appointment confirmed";
+        String body = String.format("Dear %s, your appointment with Dr. %s is confirmed for %s - %s",
+                appointment.getPatient().getName(),
+                appointment.getDoctor().getName(),
+                appointment.getStartTime(),
+                appointment.getEndTime());
+        emailClient.sendAppointmentConfirmation(appointment.getPatient().getEmail(), subject, body);
     }
 }

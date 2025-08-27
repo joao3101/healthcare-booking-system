@@ -9,3 +9,5 @@
 4. Help me create unit tests for AppointmentService
 
 5. Be brutally honest about how good is this function (AppointmentService.bookAppointment)
+
+6. Help me create a Docker image for the application

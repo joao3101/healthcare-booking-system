@@ -1,12 +1,18 @@
 package com.uphill.healthcare_booking_system.repository;
 
+import com.uphill.healthcare_booking_system.enums.AppointmentStatus;
+import com.uphill.healthcare_booking_system.repository.entity.Appointment;
+import com.uphill.healthcare_booking_system.repository.entity.Doctor;
+import com.uphill.healthcare_booking_system.repository.entity.Patient;
 import com.uphill.healthcare_booking_system.repository.entity.Room;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.PageRequest;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,44 +22,89 @@ class RoomRepositoryTest {
     @Autowired
     private RoomRepository roomRepository;
 
+    @Autowired
+    private DoctorRepository doctorRepository;
+
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private PatientRepository patientRepository;
+
     @Test
-    void testSaveAndFindById() {
+    @DisplayName("Should find available room when no conflicting appointments exist")
+    void findAvailableRoom_success() {
+        // given
         Room room = new Room();
         room.setName("Room A");
+        room.setLocation("Floor 1");
+        roomRepository.save(room);
 
-        Room saved = roomRepository.save(room);
+        LocalDateTime start = LocalDateTime.now().plusHours(1);
+        LocalDateTime end = LocalDateTime.now().plusHours(2);
 
-        Optional<Room> found = roomRepository.findById(saved.getId());
+        // when
+        List<Room> result = roomRepository.findFirstAvailableByWindow(
+                start, end, PageRequest.of(0, 1));
 
-        assertThat(found).isPresent();
-        assertThat(found.get().getName()).isEqualTo("Room A");
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Room A");
     }
 
     @Test
-    void testFindAll() {
-        Room r1 = new Room();
-        r1.setName("Room B");
-
-        Room r2 = new Room();
-        r2.setName("Room C");
-
-        roomRepository.saveAll(List.of(r1, r2));
-
-        List<Room> rooms = roomRepository.findAll();
-
-        assertThat(rooms).hasSize(2)
-                .extracting(Room::getName)
-                .containsExactlyInAnyOrder("Room B", "Room C");
-    }
-
-    @Test
-    void testDelete() {
+    @DisplayName("Should NOT find room if overlapping appointment exists")
+    void findAvailableRoom_conflict() {
+        // given
         Room room = new Room();
-        room.setName("Room D");
-        Room saved = roomRepository.save(room);
+        room.setName("Room B");
+        room.setLocation("Floor 2");
+        roomRepository.save(room);
 
-        roomRepository.delete(saved);
+        Doctor doctor = new Doctor();
+        doctor.setName("Dr. Strange");
+        doctor.setSpecialty("Cardiology");
+        doctorRepository.save(doctor);
 
-        assertThat(roomRepository.findById(saved.getId())).isNotPresent();
+        Patient patient = new Patient();
+        patient.setName("Jane Doe");
+        patient.setEmail("jane.doe@example.com");
+        patientRepository.save(patient);
+
+        Appointment appt = new Appointment();
+        appt.setDoctor(doctor);
+        appt.setPatient(patient);
+        appt.setRoom(room);
+        appt.setStartTime(LocalDateTime.now().plusHours(1));
+        appt.setEndTime(LocalDateTime.now().plusHours(3));
+        appt.setStatus(AppointmentStatus.SCHEDULED);
+        appointmentRepository.save(appt);
+
+        LocalDateTime start = LocalDateTime.now().plusHours(2);
+        LocalDateTime end = LocalDateTime.now().plusHours(4);
+
+        // when
+        List<Room> result = roomRepository.findFirstAvailableByWindow(
+                start, end, PageRequest.of(0, 1));
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should lock room by id")
+    void lockById_success() {
+        // given
+        Room room = new Room();
+        room.setName("Room C");
+        room.setLocation("Floor 3");
+        roomRepository.save(room);
+
+        // when
+        Room locked = roomRepository.lockById(room.getId());
+
+        // then
+        assertThat(locked).isNotNull();
+        assertThat(locked.getId()).isEqualTo(room.getId());
     }
 }

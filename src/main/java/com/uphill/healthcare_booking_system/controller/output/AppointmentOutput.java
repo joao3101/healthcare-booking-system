@@ -2,12 +2,15 @@ package com.uphill.healthcare_booking_system.controller.output;
 
 import java.time.LocalDateTime;
 
+import com.uphill.healthcare_booking_system.enums.AppointmentStatus;
+
 public class AppointmentOutput {
     private Long appointmentId;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Long doctorId;
     private Long roomId;
+    private AppointmentStatus status;
 
     public Long getAppointmentId() {
         return appointmentId;
@@ -38,5 +41,11 @@ public class AppointmentOutput {
     }
     public void setRoomId(Long roomId) {
         this.roomId = roomId;
+    }
+    public AppointmentStatus getStatus() {
+        return status;
+    }
+    public void setStatus(AppointmentStatus status) {
+        this.status = status;
     }
 }

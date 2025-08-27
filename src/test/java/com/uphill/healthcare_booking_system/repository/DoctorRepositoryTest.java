@@ -1,12 +1,19 @@
 package com.uphill.healthcare_booking_system.repository;
 
+import com.uphill.healthcare_booking_system.enums.AppointmentStatus;
+import com.uphill.healthcare_booking_system.repository.entity.Appointment;
 import com.uphill.healthcare_booking_system.repository.entity.Doctor;
+import com.uphill.healthcare_booking_system.repository.entity.Patient;
+import com.uphill.healthcare_booking_system.repository.entity.Room;
+
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.PageRequest;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,36 +23,89 @@ class DoctorRepositoryTest {
     @Autowired
     private DoctorRepository doctorRepository;
 
+    @Autowired
+    private RoomRepository roomRepository;
+
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private PatientRepository patientRepository;
+
     @Test
-    void testSaveAndFindById() {
-        Doctor doctor = new Doctor();
-        doctor.setName("Dr. House");
-        doctor.setSpecialty("Diagnostics");
+    @DisplayName("Should find available doctor when no conflicting appointments exist")
+    void findAvailableDoctor_success() {
+        // given
+        Doctor doc = new Doctor();
+        doc.setName("Dr. Strange");
+        doc.setSpecialty("Cardiology");
+        doctorRepository.save(doc);
 
-        Doctor saved = doctorRepository.save(doctor);
+        LocalDateTime start = LocalDateTime.now().plusHours(1);
+        LocalDateTime end = LocalDateTime.now().plusHours(2);
 
-        Optional<Doctor> found = doctorRepository.findById(saved.getId());
+        // when
+        List<Doctor> result = doctorRepository.findFirstAvailableBySpecialtyAndWindow(
+                "Cardiology", start, end, PageRequest.of(0, 1));
 
-        assertThat(found).isPresent();
-        assertThat(found.get().getName()).isEqualTo("Dr. House");
-        assertThat(found.get().getSpecialty()).isEqualTo("Diagnostics");
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Dr. Strange");
     }
 
     @Test
-    void testFindAll() {
-        Doctor d1 = new Doctor();
-        d1.setName("Dr. One");
-        d1.setSpecialty("General");
+    @DisplayName("Should NOT find doctor if overlapping appointment exists")
+    void findAvailableDoctor_conflict() {
+        // given
+        Doctor doc = new Doctor();
+        doc.setName("Dr. House");
+        doc.setSpecialty("Cardiology");
+        doctorRepository.save(doc);
 
-        Doctor d2 = new Doctor();
-        d2.setName("Dr. Two");
-        d2.setSpecialty("Surgery");
+        Patient patient = new Patient();
+        patient.setName("John Doe");
+        patient.setEmail("john.doe@example.com");
+        patientRepository.save(patient);
 
-        doctorRepository.saveAll(List.of(d1, d2));
+        Room room = new Room();
+        room.setName("Room 1");
+        room.setLocation("Building 1");
+        roomRepository.save(room);
 
-        List<Doctor> doctors = doctorRepository.findAll();
+        Appointment appt = new Appointment();
+        appt.setDoctor(doc);
+        appt.setPatient(patient);
+        appt.setRoom(room);
+        appt.setStartTime(LocalDateTime.now().plusHours(1));
+        appt.setEndTime(LocalDateTime.now().plusHours(3));
+        appt.setStatus(AppointmentStatus.SCHEDULED);
+        appointmentRepository.save(appt);
 
-        assertThat(doctors).hasSize(2).extracting(Doctor::getName)
-                .containsExactlyInAnyOrder("Dr. One", "Dr. Two");
+        LocalDateTime start = LocalDateTime.now().plusHours(2);
+        LocalDateTime end = LocalDateTime.now().plusHours(4);
+
+        // when
+        List<Doctor> result = doctorRepository.findFirstAvailableBySpecialtyAndWindow(
+                "Cardiology", start, end, PageRequest.of(0, 1));
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should lock doctor by id")
+    void lockById_success() {
+        // given
+        Doctor doc = new Doctor();
+        doc.setName("Dr. Who");
+        doc.setSpecialty("Neurology");
+        doctorRepository.save(doc);
+
+        // when
+        Doctor locked = doctorRepository.lockById(doc.getId());
+
+        // then
+        assertThat(locked).isNotNull();
+        assertThat(locked.getId()).isEqualTo(doc.getId());
     }
 }

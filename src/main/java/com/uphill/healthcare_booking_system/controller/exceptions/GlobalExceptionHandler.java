@@ -1,4 +1,4 @@
-package com.uphill.healthcare_booking_system.controller;
+package com.uphill.healthcare_booking_system.controller.exceptions;
 
 import java.time.LocalDateTime;
 import java.util.Map;

@@ -3,29 +3,30 @@ package com.uphill.healthcare_booking_system.service;
 import com.uphill.healthcare_booking_system.domain.AppointmentDomain;
 import com.uphill.healthcare_booking_system.domain.PatientDomain;
 import com.uphill.healthcare_booking_system.domain.exceptions.InvalidAppointmentWindowException;
-import com.uphill.healthcare_booking_system.domain.exceptions.NoAvailableDoctorException;
-import com.uphill.healthcare_booking_system.domain.exceptions.NoAvailableRoomException;
+import com.uphill.healthcare_booking_system.integration.DoctorCalendarClient;
+import com.uphill.healthcare_booking_system.integration.EmailClient;
+import com.uphill.healthcare_booking_system.integration.RoomReservationClient;
 import com.uphill.healthcare_booking_system.repository.AppointmentRepository;
-import com.uphill.healthcare_booking_system.repository.DoctorRepository;
-import com.uphill.healthcare_booking_system.repository.PatientRepository;
-import com.uphill.healthcare_booking_system.repository.RoomRepository;
 import com.uphill.healthcare_booking_system.repository.entity.Appointment;
 import com.uphill.healthcare_booking_system.repository.entity.Doctor;
 import com.uphill.healthcare_booking_system.repository.entity.Patient;
 import com.uphill.healthcare_booking_system.repository.entity.Room;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -34,17 +35,29 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AppointmentServiceTest {
 
-        @Mock
-        private DoctorRepository doctorRepository;
-        @Mock
-        private RoomRepository roomRepository;
-        @Mock
-        private AppointmentRepository appointmentRepository;
-        @Mock
-        private PatientRepository patientRepository;
-
         @InjectMocks
         private AppointmentService appointmentService;
+
+        @Mock
+        private PatientService patientService;
+
+        @Mock
+        private DoctorService doctorService;
+
+        @Mock
+        private RoomService roomService;
+
+        @Mock
+        private AppointmentRepository appointmentRepository;
+
+        @Mock
+        private DoctorCalendarClient doctorCalendarClient;
+
+        @Mock
+        private RoomReservationClient roomReservationClient;
+
+        @Mock
+        private EmailClient emailClient;
 
         private AppointmentDomain baseRequest;
 
@@ -63,132 +76,86 @@ class AppointmentServiceTest {
         }
 
         @Test
-        void shouldBookAppointmentWhenDoctorAndRoomAvailable() {
-                Doctor doctor = new Doctor();
-                doctor.setId(100L);
+        void bookAppointment_success() {
+                // given
+                LocalDateTime start = LocalDateTime.now().plusHours(1);
+                LocalDateTime end = start.plusHours(1);
+                AppointmentDomain input = baseRequest;
 
+                Patient patient = new Patient();
+                patient.setId(1L);
+                Doctor doctor = new Doctor();
+                doctor.setId(2L);
                 Room room = new Room();
-                room.setId(200L);
+                room.setId(3L);
 
-                Patient patient = new Patient();
-                patient.setId(1L);
-                patient.setName("John Doe");
-                patient.setEmail("test_mail@mail.com");
+                Appointment saved = new Appointment();
+                saved.setId(100L);
+                saved.setDoctor(doctor);
+                saved.setRoom(room);
+                saved.setPatient(patient);
+                saved.setStartTime(start);
+                saved.setEndTime(end);
 
-                when(patientRepository.findByEmail("test_mail@mail.com")).thenReturn(patient);
+                when(patientService.findOrCreatePatient(any(), any())).thenReturn(patient);
+                when(doctorService.findAndLockAvailableDoctor(any(), any(), any())).thenReturn(doctor);
+                when(roomService.findAndLockAvailableRoom(any(), any())).thenReturn(room);
+                when(appointmentRepository.save(any())).thenReturn(saved);
 
-                when(doctorRepository.findFirstAvailableBySpecialtyAndWindow(
-                                any(), any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of(doctor));
-                when(doctorRepository.lockById(100L)).thenReturn(doctor);
-                when(appointmentRepository.existsOverlapForDoctor(eq(100L), any(), any())).thenReturn(false);
+                // when
+                AppointmentDomain result = appointmentService.bookAppointment(input);
 
-                when(roomRepository.findFirstAvailableByWindow(any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of(room));
-                when(roomRepository.lockById(200L)).thenReturn(room);
-                when(appointmentRepository.existsOverlapForRoom(eq(200L), any(), any())).thenReturn(false);
+                // then
+                assertThat(result.getId()).isEqualTo(100L);
+                assertThat(result.getDoctor().getId()).isEqualTo(2L);
+                assertThat(result.getRoom().getId()).isEqualTo(3L);
 
-                when(appointmentRepository.save(any(Appointment.class)))
-                                .thenAnswer(invocation -> invocation.getArgument(0)); // return the same object
-
-                AppointmentDomain appt = appointmentService.bookAppointment(baseRequest);
-
-                assertNotNull(appt);
-                assertEquals(100L, appt.getDoctor().getId());
-                assertEquals(200L, appt.getRoom().getId());
-                verify(appointmentRepository).save(any(Appointment.class));
+                // verify external interactions
+                verify(doctorCalendarClient).reserveSlot(eq(doctor.getId()), eq(start), eq(end));
+                verify(roomReservationClient).reserveRoom(eq(room.getId()), eq(start), eq(end));
+                verify(emailClient).sendAppointmentConfirmation(eq(patient.getEmail()), any(), any());
         }
 
         @Test
-        void shouldThrowWhenNoDoctorAvailable() {
-                Patient patient = new Patient();
-                patient.setId(1L);
-                patient.setName("John Doe");
-                patient.setEmail("test_mail@mail.com");
+        void bookAppointment_invalidWindow_throwsException() {
+                AppointmentDomain input = new AppointmentDomain();
+                input.setStartTime(LocalDateTime.now().plusHours(2));
+                input.setEndTime(LocalDateTime.now().plusHours(1)); // invalid
 
-                when(patientRepository.findByEmail("test_mail@mail.com")).thenReturn(patient);
-
-                when(doctorRepository.findFirstAvailableBySpecialtyAndWindow(any(), any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of());
-
-                assertThrows(NoAvailableDoctorException.class,
-                                () -> appointmentService.bookAppointment(baseRequest));
+                assertThatThrownBy(() -> appointmentService.bookAppointment(input))
+                                .isInstanceOf(InvalidAppointmentWindowException.class);
         }
 
         @Test
-        void shouldThrowWhenDoctorIsTakenAfterLock() {
+        void bookAppointment_patientServiceCalled() {
+                AppointmentDomain input = baseRequest;
+
+                Patient patient = new Patient();
+                patient.setId(1L);
+                patient.setName(input.getPatient().getName());
+                patient.setEmail("test_mail@mail.com");
+                
                 Doctor doctor = new Doctor();
-                doctor.setId(101L);
-
-                Patient patient = new Patient();
-                patient.setId(1L);
-                patient.setName("John Doe");
-                patient.setEmail("test_mail@mail.com");
-
-                when(patientRepository.findByEmail("test_mail@mail.com")).thenReturn(patient);
-
-                when(doctorRepository.findFirstAvailableBySpecialtyAndWindow(any(), any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of(doctor));
-                when(doctorRepository.lockById(101L)).thenReturn(doctor);
-
-                // Simulate overlap found
-                when(appointmentRepository.existsOverlapForDoctor(eq(101L), any(), any())).thenReturn(true);
-
-                assertThrows(NoAvailableDoctorException.class,
-                                () -> appointmentService.bookAppointment(baseRequest));
-        }
-
-        @Test
-        void shouldThrowWhenNoRoomAvailable() {
-                Doctor doctor = new Doctor();
-                doctor.setId(100L);
-
-                Patient patient = new Patient();
-                patient.setId(1L);
-                patient.setName("John Doe");
-                patient.setEmail("test_mail@mail.com");
-
-                when(patientRepository.findByEmail("test_mail@mail.com")).thenReturn(patient);
-
-                when(doctorRepository.findFirstAvailableBySpecialtyAndWindow(any(), any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of(doctor));
-                when(doctorRepository.lockById(100L)).thenReturn(doctor);
-                when(appointmentRepository.existsOverlapForDoctor(eq(100L), any(), any())).thenReturn(false);
-
-                when(roomRepository.findFirstAvailableByWindow(any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of());
-
-                assertThrows(NoAvailableRoomException.class,
-                                () -> appointmentService.bookAppointment(baseRequest));
-        }
-
-        @Test
-        void shouldThrowWhenRoomIsTakenAfterLock() {
-                Doctor doctor = new Doctor();
-                doctor.setId(100L);
-
+                doctor.setId(2L);
                 Room room = new Room();
-                room.setId(200L);
+                room.setId(3L);
 
-                Patient patient = new Patient();
-                patient.setId(1L);
-                patient.setName("John Doe");
-                patient.setEmail("test_mail@mail.com");
+                Appointment saved = new Appointment();
+                saved.setId(100L);
+                saved.setDoctor(doctor);
+                saved.setRoom(room);
+                saved.setPatient(patient);
+                saved.setStartTime(input.getStartTime());
+                saved.setEndTime(input.getEndTime());
 
-                when(patientRepository.findByEmail("test_mail@mail.com")).thenReturn(patient);
+                when(patientService.findOrCreatePatient(any(), any())).thenReturn(patient);
+                when(doctorService.findAndLockAvailableDoctor(any(), any(), any())).thenReturn(doctor);
+                when(roomService.findAndLockAvailableRoom(any(), any())).thenReturn(room);
+                when(appointmentRepository.save(any())).thenReturn(saved);
 
-                when(doctorRepository.findFirstAvailableBySpecialtyAndWindow(any(), any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of(doctor));
-                when(doctorRepository.lockById(100L)).thenReturn(doctor);
-                when(appointmentRepository.existsOverlapForDoctor(eq(100L), any(), any())).thenReturn(false);
+                appointmentService.bookAppointment(input);
 
-                when(roomRepository.findFirstAvailableByWindow(any(), any(), any(Pageable.class)))
-                                .thenReturn(List.of(room));
-                when(roomRepository.lockById(200L)).thenReturn(room);
-                when(appointmentRepository.existsOverlapForRoom(eq(200L), any(), any())).thenReturn(true);
-
-                assertThrows(NoAvailableRoomException.class,
-                                () -> appointmentService.bookAppointment(baseRequest));
+                verify(patientService).findOrCreatePatient(patient.getEmail(), patient.getName());
         }
 
         @Test
@@ -197,6 +164,67 @@ class AppointmentServiceTest {
 
                 assertThrows(InvalidAppointmentWindowException.class,
                                 () -> appointmentService.bookAppointment(baseRequest));
+        }
+
+        @Test
+        @DisplayName("getAllAppointments should return paginated appointments")
+        void getAllAppointments_success() {
+                // given
+                Doctor doctorEntity = new Doctor();
+                doctorEntity.setId(1L);
+                doctorEntity.setName("Dr. Strange");
+                doctorEntity.setSpecialty("Cardiology");
+
+                Room roomEntity = new Room();
+                roomEntity.setId(10L);
+                roomEntity.setName("Room A");
+                roomEntity.setLocation("First Floor");
+
+                Patient patientEntity = new Patient();
+                patientEntity.setName("John Doe");
+                patientEntity.setEmail("john.doe@example.com");
+
+                Appointment apptEntity1 = new Appointment();
+                apptEntity1.setId(100L);
+                apptEntity1.setDoctor(doctorEntity);
+                apptEntity1.setRoom(roomEntity);
+                apptEntity1.setPatient(patientEntity);
+                apptEntity1.setStartTime(LocalDateTime.now().plusHours(1));
+                apptEntity1.setEndTime(LocalDateTime.now().plusHours(2));
+
+                Appointment apptEntity2 = new Appointment();
+                apptEntity2.setId(101L);
+                apptEntity2.setDoctor(doctorEntity);
+                apptEntity2.setRoom(roomEntity);
+                apptEntity2.setPatient(patientEntity);
+                apptEntity2.setStartTime(LocalDateTime.now().plusHours(3));
+                apptEntity2.setEndTime(LocalDateTime.now().plusHours(4));
+
+                Page<Appointment> page = new PageImpl<>(List.of(apptEntity1, apptEntity2));
+
+                when(appointmentRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
+
+                // when
+                List<AppointmentDomain> result = appointmentService.getAllAppointments(0, 20);
+
+                // then
+                assertThat(result).hasSize(2);
+                assertThat(result.get(0).getId()).isEqualTo(100L);
+                assertThat(result.get(1).getId()).isEqualTo(101L);
+        }
+
+        @Test
+        @DisplayName("getAllAppointments should return empty list when no appointments exist")
+        void getAllAppointments_empty() {
+                // given
+                Page<Appointment> page = new PageImpl<>(List.of());
+                when(appointmentRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
+
+                // when
+                List<AppointmentDomain> result = appointmentService.getAllAppointments(0, 20);
+
+                // then
+                assertThat(result).isEmpty();
         }
 
 }

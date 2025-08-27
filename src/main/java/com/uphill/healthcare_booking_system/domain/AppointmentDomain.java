@@ -2,6 +2,8 @@ package com.uphill.healthcare_booking_system.domain;
 
 import java.time.LocalDateTime;
 
+import com.uphill.healthcare_booking_system.enums.AppointmentStatus;
+
 public class AppointmentDomain {
 
     private Long id;
@@ -9,6 +11,7 @@ public class AppointmentDomain {
     private PatientDomain patient;
     private DoctorDomain doctor;
     private RoomDomain room;
+    private AppointmentStatus status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 
@@ -68,4 +71,11 @@ public class AppointmentDomain {
         this.room = room;
     }
 
+    public AppointmentStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(AppointmentStatus status) {
+        this.status = status;
+    }
 }
