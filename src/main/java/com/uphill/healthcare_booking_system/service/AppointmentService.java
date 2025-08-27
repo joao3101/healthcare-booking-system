@@ -1,5 +1,6 @@
 package com.uphill.healthcare_booking_system.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -54,16 +55,16 @@ public class AppointmentService {
 
     @Transactional
     public AppointmentDomain bookAppointment(AppointmentDomain req) {
-        if (req.getStartTime() == null || req.getEndTime() == null || !req.getEndTime().isAfter(req.getStartTime())) {
-            throw new InvalidAppointmentWindowException();
-        }
         final var start = req.getStartTime();
         final var end = req.getEndTime();
+        
+        checkTimeWindow(start, end);
 
+        // Best scenario is to pass a PatientDomain object to the service, passing only those two params for simplification purposes
         Patient patient = patientService.findOrCreatePatient(req.getPatient().getEmail(), req.getPatient().getName());
 
-        Doctor doctor = doctorService.findAndLockAvailableDoctor(req.getSpecialty(), req.getStartTime(), req.getEndTime());
-        Room room = roomService.findAndLockAvailableRoom(req.getStartTime(), req.getEndTime());
+        Doctor doctor = doctorService.findAndLockAvailableDoctor(req.getSpecialty(), start, end);
+        Room room = roomService.findAndLockAvailableRoom(start, end);
 
         // This can be refactored to a mapper method
         Appointment appt = new Appointment();
@@ -78,7 +79,7 @@ public class AppointmentService {
 
         AppointmentDomain domain = convertToDomain(savedAppointment);
 
-        reserveDoctor(domain);
+        updateDoctorCalendar(domain);
         reserveRoom(domain);
         sendConfirmationEmail(domain);
 
@@ -90,6 +91,12 @@ public class AppointmentService {
         return appointmentsPage.stream()
                 .map(this::convertToDomain)
                 .collect(Collectors.toList());
+    }
+
+    private void checkTimeWindow(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null || !end.isAfter(start) || !start.isAfter(LocalDateTime.now())) {
+            throw new InvalidAppointmentWindowException();
+        }
     }
 
     private AppointmentDomain convertToDomain(Appointment appointment) {
@@ -119,7 +126,7 @@ public class AppointmentService {
         return domain;
     }
 
-    private void reserveDoctor(AppointmentDomain appointment) {
+    private void updateDoctorCalendar(AppointmentDomain appointment) {
         doctorCalendarClient.reserveSlot(
                 appointment.getDoctor().getId(),
                 appointment.getStartTime(),

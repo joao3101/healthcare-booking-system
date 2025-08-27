@@ -9,5 +9,6 @@ public class FakeEmailClient implements EmailClient {
     @Override
     public void sendAppointmentConfirmation(String toEmail, String subject, String body) {
         System.out.println("Sent email to " + toEmail + " with subject: " + subject);
+        System.out.println("Body: " + body);
     }
 }
