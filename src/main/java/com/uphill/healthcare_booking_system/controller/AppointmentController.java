@@ -29,11 +29,23 @@ public class AppointmentController {
 
     @PostMapping
     public AppointmentOutput bookAppointment(@RequestBody AppointmentInput appointmentInput) {
-        // Usually, for changing between object layers, I create an adapter class to
-        // convert input -> domain <-> database object and domain -> output.
-        // As this is a simple method, I will just convert the input to a domain object
-        // and pass it to the service and than convert the domain to a output object.
+        AppointmentDomain appointmentDomain = convertToDomain(appointmentInput);
 
+        AppointmentDomain savedDomain = appointmentService.bookAppointment(appointmentDomain);
+
+        return convertToOutput(savedDomain);
+    }
+
+    @GetMapping
+    public List<AppointmentOutput> getAllAppointments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return appointmentService.getAllAppointments(page, size).stream()
+                .map(this::convertToOutput)
+                .collect(Collectors.toList());
+    }
+
+    private AppointmentDomain convertToDomain(AppointmentInput appointmentInput) {
         long instantStart = Instant.ofEpochSecond(appointmentInput.getStartDate()).toEpochMilli();
         long instantEnd = Instant.ofEpochSecond(appointmentInput.getEndDate()).toEpochMilli();
 
@@ -50,18 +62,7 @@ public class AppointmentController {
         appointmentDomain.setSpecialty(appointmentInput.getSpecialty());
         appointmentDomain.setPatient(patientDomain);
 
-        AppointmentDomain savedDomain = appointmentService.bookAppointment(appointmentDomain);
-
-        return convertToOutput(savedDomain);
-    }
-
-    @GetMapping
-    public List<AppointmentOutput> getAllAppointments(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return appointmentService.getAllAppointments(page, size).stream()
-                .map(this::convertToOutput)
-                .collect(Collectors.toList());
+        return appointmentDomain;
     }
 
     private AppointmentOutput convertToOutput(AppointmentDomain appointmentDomain) {

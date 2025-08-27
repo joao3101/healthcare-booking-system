@@ -15,6 +15,7 @@ import com.uphill.healthcare_booking_system.domain.exceptions.InvalidAppointment
 import com.uphill.healthcare_booking_system.domain.exceptions.NoAvailableDoctorException;
 import com.uphill.healthcare_booking_system.domain.exceptions.NoAvailableRoomException;
 
+// This was an advice from ChatGPT, that will be used to handle exceptions in a global way
 @ControllerAdvice
 public class GlobalExceptionHandler {
 

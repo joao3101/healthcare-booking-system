@@ -71,8 +71,8 @@ class AppointmentServiceTest {
                 baseRequest = new AppointmentDomain();
                 baseRequest.setSpecialty("Cardiology");
                 baseRequest.setPatient(patient);
-                baseRequest.setStartTime(LocalDateTime.of(2025, 1, 1, 10, 0));
-                baseRequest.setEndTime(LocalDateTime.of(2025, 1, 1, 11, 0));
+                baseRequest.setStartTime(LocalDateTime.now().plusHours(1));
+                baseRequest.setEndTime(LocalDateTime.now().plusHours(2));
         }
 
         @Test

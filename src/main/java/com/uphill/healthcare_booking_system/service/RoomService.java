@@ -16,6 +16,7 @@ public class RoomService {
     @Autowired private RoomRepository roomRepository;
     @Autowired private AppointmentRepository appointmentRepository;
 
+    // For simplicity reasons, this will return a Room instead of a RoomDomain, but it should return a domain on the service layer
     public Room findAndLockAvailableRoom(LocalDateTime start, LocalDateTime end) {
         Room candidate = roomRepository
                 .findFirstAvailableByWindow(start, end, PageRequest.of(0, 1))

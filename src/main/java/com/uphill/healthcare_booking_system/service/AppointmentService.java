@@ -79,6 +79,8 @@ public class AppointmentService {
 
         AppointmentDomain domain = convertToDomain(savedAppointment);
 
+        // For simplicity purposes, the following methods are called here, but they should be called in a separate thread. They should not be dependent
+        // on the transactional context of the bookAppointment method.
         updateDoctorCalendar(domain);
         reserveRoom(domain);
         sendConfirmationEmail(domain);
@@ -100,16 +102,19 @@ public class AppointmentService {
     }
 
     private AppointmentDomain convertToDomain(Appointment appointment) {
+        // Ideally, this doctor part should be on it's own domain
         DoctorDomain doctorDomain = new DoctorDomain();
         doctorDomain.setId(appointment.getDoctor().getId());
         doctorDomain.setName(appointment.getDoctor().getName());
         doctorDomain.setSpecialty(appointment.getDoctor().getSpecialty());
 
+        // Ideally, this room part should be on it's own domain
         RoomDomain roomDomain = new RoomDomain();
         roomDomain.setId(appointment.getRoom().getId());
         roomDomain.setName(appointment.getRoom().getName());
         roomDomain.setLocation(appointment.getRoom().getLocation());
 
+        // Ideally, this patient part should be on it's own domain
         PatientDomain patientDomain = new PatientDomain();
         patientDomain.setId(appointment.getPatient().getId());
         patientDomain.setName(appointment.getPatient().getName());

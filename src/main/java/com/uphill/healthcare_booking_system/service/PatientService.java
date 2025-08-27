@@ -12,6 +12,7 @@ public class PatientService {
     @Autowired
     private PatientRepository patientRepository;
 
+    // For simplicity reasons, this will return a Patient instead of a PatientDomain, but it should return a domain on the service layer
     public Patient findOrCreatePatient(String email, String name) {
         Patient patient = patientRepository.findByEmail(email);
         if (patient == null) {

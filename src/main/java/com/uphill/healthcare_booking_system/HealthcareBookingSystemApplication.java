@@ -6,6 +6,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 import com.uphill.healthcare_booking_system.repository.DoctorRepository;
 import com.uphill.healthcare_booking_system.repository.RoomRepository;
@@ -13,6 +14,7 @@ import com.uphill.healthcare_booking_system.repository.entity.Doctor;
 import com.uphill.healthcare_booking_system.repository.entity.Room;
 
 @SpringBootApplication
+@EnableAsync
 public class HealthcareBookingSystemApplication {
 
 	public static void main(String[] args) {
@@ -24,7 +26,7 @@ public class HealthcareBookingSystemApplication {
         return args -> {
             if (doctorRepo.count() == 0) {
 				Doctor drStrange = new Doctor();
-				drStrange.setName("Dra. Strange");
+				drStrange.setName("Dr. Strange");
 				drStrange.setSpecialty("Cardiology");
 
 				Doctor drHouse = new Doctor();

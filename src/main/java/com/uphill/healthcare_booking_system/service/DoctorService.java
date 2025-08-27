@@ -16,6 +16,7 @@ public class DoctorService {
     @Autowired private DoctorRepository doctorRepository;
     @Autowired private AppointmentRepository appointmentRepository;
 
+    // For simplicity reasons, this will return a Doctor instead of a DoctorDomain, but it should return a domain on the service layer
     public Doctor findAndLockAvailableDoctor(String specialty, LocalDateTime start, LocalDateTime end) {
         Doctor candidate = doctorRepository
                 .findFirstAvailableBySpecialtyAndWindow(specialty, start, end, PageRequest.of(0, 1))

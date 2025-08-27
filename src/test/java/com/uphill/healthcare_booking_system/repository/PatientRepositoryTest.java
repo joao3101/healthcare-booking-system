@@ -1,6 +1,10 @@
 package com.uphill.healthcare_booking_system.repository;
 
 import com.uphill.healthcare_booking_system.repository.entity.Patient;
+
+import jakarta.persistence.EntityManager;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +19,17 @@ class PatientRepositoryTest {
 
     @Autowired
     private PatientRepository patientRepository;
+
+    @Autowired
+    private EntityManager em;
+
+    @BeforeEach
+    void cleanDatabase() {
+        em.createQuery("DELETE FROM Appointment").executeUpdate();
+        em.createQuery("DELETE FROM Doctor").executeUpdate();
+        em.createQuery("DELETE FROM Room").executeUpdate();
+        em.createQuery("DELETE FROM Patient").executeUpdate();
+    }
 
     @Test
     @DisplayName("findByEmail should return patient when email exists")

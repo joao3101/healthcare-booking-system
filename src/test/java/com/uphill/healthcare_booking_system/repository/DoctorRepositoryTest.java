@@ -6,6 +6,9 @@ import com.uphill.healthcare_booking_system.repository.entity.Doctor;
 import com.uphill.healthcare_booking_system.repository.entity.Patient;
 import com.uphill.healthcare_booking_system.repository.entity.Room;
 
+import jakarta.persistence.EntityManager;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +34,17 @@ class DoctorRepositoryTest {
 
     @Autowired
     private PatientRepository patientRepository;
+
+    @Autowired
+    private EntityManager em;
+
+    @BeforeEach
+    void cleanDatabase() {
+        em.createQuery("DELETE FROM Appointment").executeUpdate();
+        em.createQuery("DELETE FROM Doctor").executeUpdate();
+        em.createQuery("DELETE FROM Room").executeUpdate();
+        em.createQuery("DELETE FROM Patient").executeUpdate();
+    }
 
     @Test
     @DisplayName("Should find available doctor when no conflicting appointments exist")
