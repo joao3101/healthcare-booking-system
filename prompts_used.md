@@ -11,6 +11,8 @@
 5. Be brutally honest about how good is this function (AppointmentService.bookAppointment)
 
 6. Help me create a Docker image for the application
+6.a Why the --no-daemon instruction?
+6.b Why the eclipse-temurin:17-jdk-jammy image?
 
 7. What are the differences between construction injection and using @Autowired?
 A: Constructor injection is safer, more testable, and promotes immutability, while @Autowired is more convenient but hides dependencies and makes testing harder.
