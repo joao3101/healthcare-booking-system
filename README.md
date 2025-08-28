@@ -50,6 +50,14 @@ A simple Spring Boot application for managing healthcare appointments.
 
 ---
 
+## Some simple assumptions
+
+1. The appointment window is in milliseconds since the epoch.
+
+2. The appointment window is in the future.
+
+3. I've preloaded the database with some doctors and rooms. The doctors specialties are Cardiology, Neurology and Pediatrics. For more information on some assumptions that I've made, please check the assumptions_and_simplifications.md file.
+
 ## API Endpoints
 
 ### Create Appointment
@@ -63,7 +71,7 @@ Content-Type: application/json
   "patient_name": "John Doe",
   "start_date": 1693465200000,
   "end_date": 1693468800000,
-  "specialty": "CARDIOLOGY"
+  "specialty": "Cardiology"
 }
 ```
 
