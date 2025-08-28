@@ -16,5 +16,3 @@
 
 7. What are the differences between construction injection and using @Autowired?
 A: Constructor injection is safer, more testable, and promotes immutability, while @Autowired is more convenient but hides dependencies and makes testing harder.
-
-8. 

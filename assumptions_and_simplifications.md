@@ -10,3 +10,5 @@
 This was initially a solution that made sense for me, but after some time, I was thinking twice on it. This is something that when working with Go, it's one of the
 firsts things I do, but in Java I was not sure how to do it the best. After some time, I discovered the @Mapping annotation from MapStruct, which is a great tool
 for this purpose. I will be using it in the future.
+
+6. Use H2 database for development and testing, and PostgreSQL for production.
