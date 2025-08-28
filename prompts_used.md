@@ -10,7 +10,7 @@
 
 5. Be brutally honest about how good is this function (AppointmentService.bookAppointment)
 
-6. Help me create a Docker image for the application
+6. Help me create a Dockerfile for the application
 6.a Why the --no-daemon instruction?
 6.b Why the eclipse-temurin:17-jdk-jammy image?
 
