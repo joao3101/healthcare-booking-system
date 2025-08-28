@@ -48,12 +48,6 @@ A simple Spring Boot application for managing healthcare appointments.
     java -jar build/libs/*.jar
     ```
 
-3. Access the application at:
-
-    ```
-    http://localhost:8080
-    ```
-
 ---
 
 ## API Endpoints

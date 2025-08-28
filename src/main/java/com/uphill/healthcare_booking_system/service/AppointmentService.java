@@ -2,6 +2,8 @@ package com.uphill.healthcare_booking_system.service;
 
 import java.time.LocalDateTime;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -51,18 +53,26 @@ public class AppointmentService {
         this.roomService = roomService;
     }
 
+    private static final Logger log = LoggerFactory.getLogger(AppointmentService.class);
+
     @Transactional
     public AppointmentDomain bookAppointment(AppointmentDomain req) {
         final var start = req.getStartTime();
         final var end = req.getEndTime();
+        log.info("Booking appointment requested for patient={}, specialty={}, start={}, end={}",
+                req.getPatient().getEmail(), req.getSpecialty(), start, end);
         
         checkTimeWindow(start, end);
 
         // Best scenario is to pass a PatientDomain object to the service, passing only those two params for simplification purposes
         Patient patient = patientService.findOrCreatePatient(req.getPatient().getEmail(), req.getPatient().getName());
+        log.debug("Patient resolved: id={}, email={}", patient.getId(), patient.getEmail());
 
         Doctor doctor = doctorService.findAndLockAvailableDoctor(req.getSpecialty(), start, end);
+        log.debug("Doctor resolved: id={}, name={}", doctor.getId(), doctor.getName());
+
         Room room = roomService.findAndLockAvailableRoom(start, end);
+        log.debug("Room resolved: id={}, name={}", room.getId(), room.getName());
 
         // This can be refactored to a mapper method
         Appointment appt = new Appointment();
@@ -74,10 +84,14 @@ public class AppointmentService {
         appt.setEndTime(end);
 
         Appointment savedAppointment = appointmentRepository.save(appt);
+        log.info("Appointment persisted with id={}", savedAppointment.getId());
 
         AppointmentDomain domain = convertToDomain(savedAppointment);
 
         // Those are async calls that do not interfere with the transactional context of the bookAppointment method.
+        // For even more of a scalable solution, the ideal solution would use an event-driven approach to make this loosely coupled, more scalabe
+        // and easier to debug.
+        log.info("Dispatching async tasks for appointment id={}", domain.getId());
         updateDoctorCalendar(domain);
         reserveRoom(domain);
         sendConfirmationEmail(domain);
@@ -131,6 +145,7 @@ public class AppointmentService {
                 appointment.getDoctor().getId(),
                 appointment.getStartTime(),
                 appointment.getEndTime());
+        log.info("Doctor calendar updated for appointment id={}", appointment.getId());
     }
 
     private void reserveRoom(AppointmentDomain appointment) {
@@ -138,6 +153,7 @@ public class AppointmentService {
                 appointment.getRoom().getId(),
                 appointment.getStartTime(),
                 appointment.getEndTime());
+        log.info("Room reserved for appointment id={}", appointment.getId());
     }
 
     private void sendConfirmationEmail(AppointmentDomain appointment) {
@@ -148,5 +164,6 @@ public class AppointmentService {
                 appointment.getStartTime(),
                 appointment.getEndTime());
         emailClient.sendAppointmentConfirmation(appointment.getPatient().getEmail(), subject, body);
+        log.info("Email sent for appointment id={}", appointment.getId());
     }
 }
