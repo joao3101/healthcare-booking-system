@@ -118,7 +118,7 @@ class AppointmentServiceTest {
 
         @Test
         void bookAppointment_invalidWindow_throwsException() {
-                AppointmentDomain input = new AppointmentDomain();
+                AppointmentDomain input = baseRequest;
                 input.setStartTime(LocalDateTime.now().plusHours(2));
                 input.setEndTime(LocalDateTime.now().plusHours(1)); // invalid
 
